@@ -2,6 +2,8 @@
 
 An MCP connector that lets Claude create, edit and delete tutorials, and add images to them, on a Git-based documentation site (Docusaurus, MkDocs, VitePress, Docsify, GitBook Git-sync, …). It commits straight to your docs GitHub repo, and with `SITE_DIR` set it rebuilds and publishes the site after every change, so whatever Claude writes is live a minute or two later.
 
+A live example built with it is the docs site [docsXAi](https://arfzkwn-coder.github.io/docsXAi/) ([source](https://github.com/ArfZkwn-coder/docsXAi)), where a team writes tutorials by chatting with Claude. Watch the one-minute demo in its [setup guide](https://arfzkwn-coder.github.io/docsXAi/docs/set-up-in-claude).
+
 ## Tools
 
 | Tool | What it does |
@@ -155,3 +157,7 @@ Then set the n8n container's `WEBHOOK_URL` to `https://<your-host>.ts.net:8443/`
 ## Testing
 
 `npm test` runs an end-to-end check (real MCP client and server over both in-memory and HTTP transports, fake GitHub API and shell); no token or network needed.
+
+## License
+
+[MIT](LICENSE)

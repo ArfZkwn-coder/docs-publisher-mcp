@@ -1,0 +1,9 @@
+.git
+.claude
+.env
+.env.*
+node_modules
+docsXAi
+data
+test
+*.zip

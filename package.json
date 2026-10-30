@@ -1,0 +1,22 @@
+{
+  "name": "docs-publisher-mcp",
+  "version": "1.0.0",
+  "description": "MCP connector that lets Claude upload and edit tutorials in a Git-based documentation site",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "docs-publisher-mcp": "src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "start:http": "node src/http.js",
+    "test": "node test/smoke.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "zod": "^3.23.8"
+  }
+}

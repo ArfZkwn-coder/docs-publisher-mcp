@@ -1,0 +1,529 @@
+{
+  "name": "Docs access bot (Telegram)",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "7c1e2d3a-1111-4a51-9c2e-1a7d3f700001",
+      "name": "Telegram message",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "0f6d2c41-7a3e-4b8f-9e1d-5c2a8b710001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// EDIT THIS: your own Telegram chat ID. Send /myid to the bot to find it.\nconst OWNER_CHAT_ID = '123456789';\n\n// Decides what a message asks for. Only the owner can approve, revoke or list keys.\nconst msg = $input.first().json.message ?? {};\nconst chatId = String(msg.chat?.id ?? '');\nconst text = String(msg.text ?? '').trim();\nconst from = msg.from ?? {};\nconst ownerSet = /^-?\\d+$/.test(OWNER_CHAT_ID);\nconst isOwner = ownerSet && chatId === OWNER_CHAT_ID;\nconst clean = (s) => String(s ?? '').trim().toLowerCase()\n  .replace(/[^a-z0-9._-]+/g, '-').replace(/^[^a-z0-9]+/, '').slice(0, 32);\n// Messages are sent as HTML, so escape anything that came from the sender.\nconst esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst [command = '', ...args] = text.split(/\\s+/);\nconst cmd = command.toLowerCase().replace(/@.*$/, '');\n\nconst out = { action: 'ignore', chatId, ownerChatId: OWNER_CHAT_ID };\nif (cmd === '/myid' || !ownerSet) {\n  out.action = 'myid';\n} else if (isOwner && cmd === '/approve' && /^-?\\d+$/.test(args[0] ?? '') && clean(args[1])) {\n  Object.assign(out, { action: 'approve', targetChatId: args[0], name: clean(args[1]) });\n} else if (isOwner && cmd === '/revoke' && clean(args[0])) {\n  Object.assign(out, { action: 'revoke', name: clean(args[0]) });\n} else if (isOwner && cmd === '/list') {\n  out.action = 'list';\n} else if (isOwner) {\n  out.action = 'help';\n} else if (cmd === '/start' || cmd === '/access') {\n  Object.assign(out, {\n    action: 'request',\n    requester: esc([from.first_name, from.last_name].filter(Boolean).join(' ') || 'Seseorang'),\n    username: from.username ? '@' + esc(from.username) : '(tiada username)',\n    name: clean(from.username || from.first_name) || 'user' + chatId.replace('-', ''),\n  });\n}\nreturn [{ json: out }];"
+      },
+      "id": "7c1e2d3a-1111-4a51-9c2e-1a7d3f700002",
+      "name": "Route",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c1",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "request",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "request"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c2",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "approve",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "approve"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c3",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "revoke",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "revoke"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c4",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "list",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "list"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c5",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "myid",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "myid"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c6",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "help",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "help"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7c1e2d3a-1111-4a51-9c2e-1a7d3f700003",
+      "name": "Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        440,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.ownerChatId }}",
+        "text": "={{ $json.requester }} ({{ $json.username }}, chat ID {{ $json.chatId }}) minta akses docs-publisher.\n\nUntuk lulus, hantar:\n/approve {{ $json.chatId }} {{ $json.name }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "7c1e2d3a-1111-4a51-9c2e-1a7d3f700004",
+      "name": "Ask owner",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        700,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Route').item.json.chatId }}",
+        "text": "Permintaan anda telah dihantar kepada pemilik. Anda akan menerima URL connector di sini selepas diluluskan.",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "7c1e2d3a-1111-4a51-9c2e-1a7d3f700005",
+      "name": "Tell requester",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        920,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://172.17.0.1:8788/keys",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ name: $json.name }) }}",
+        "options": {}
+      },
+      "id": "7c1e2d3a-1111-4a51-9c2e-1a7d3f700006",
+      "name": "Create key",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Route').item.json.targetChatId }}",
+        "text": "=Hai {{ $json.name }}! Permintaan anda diluluskan. Ini URL connector docs-publisher peribadi anda:\n\n{{ $json.url }}\n\nCara pasang: claude.ai → Customize → Connectors → + Add → Add custom connector. Nama: docs-publisher. URL: tampal URL di atas.\n\nPanduan penuh: https://arfzkwn-coder.github.io/docsXAi/docs/set-up-in-claude\n\nRahsiakan URL ini, ia seperti kata laluan. Padam mesej ini selepas anda menambah connector.",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "7c1e2d3a-1111-4a51-9c2e-1a7d3f700007",
+      "name": "Send URL to friend",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        920,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Route').item.json.ownerChatId }}",
+        "text": "=Kunci dicipta untuk {{ $('Create key').item.json.name }} dan URL telah dihantar kepada mereka.",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "7c1e2d3a-1111-4a51-9c2e-1a7d3f700008",
+      "name": "Confirm approve",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1140,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "=http://172.17.0.1:8788/keys/{{ encodeURIComponent($json.name) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "7c1e2d3a-1111-4a51-9c2e-1a7d3f700009",
+      "name": "Revoke key",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Route').item.json.ownerChatId }}",
+        "text": "={{ $json.removed ? 'Kunci ' + $json.name + ' telah dipadam. URL mereka tidak berfungsi lagi.' : 'Tiada kunci bernama ' + $('Route').item.json.name + '.' }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "7c1e2d3a-1111-4a51-9c2e-1a7d3f700010",
+      "name": "Confirm revoke",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        920,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://172.17.0.1:8788/keys",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "7c1e2d3a-1111-4a51-9c2e-1a7d3f700011",
+      "name": "List keys",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Route').item.json.ownerChatId }}",
+        "text": "={{ $json.names.length ? 'Orang yang ada kunci:\\n' + $json.names.join('\\n') : 'Belum ada kunci peribadi.' }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "7c1e2d3a-1111-4a51-9c2e-1a7d3f700012",
+      "name": "Send list",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        920,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "=Chat ID anda: {{ $json.chatId }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "7c1e2d3a-1111-4a51-9c2e-1a7d3f700013",
+      "name": "Send chat ID",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        700,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "Arahan pemilik:\n/approve CHAT_ID NAMA - beri akses dan hantar URL\n/revoke NAMA - tarik balik akses\n/list - senarai orang yang ada kunci\n/myid - chat ID anda",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "7c1e2d3a-1111-4a51-9c2e-1a7d3f700014",
+      "name": "Send help",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        700,
+        700
+      ]
+    }
+  ],
+  "connections": {
+    "Telegram message": {
+      "main": [
+        [
+          {
+            "node": "Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route": {
+      "main": [
+        [
+          {
+            "node": "Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Action": {
+      "main": [
+        [
+          {
+            "node": "Ask owner",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create key",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Revoke key",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "List keys",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send chat ID",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send help",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ask owner": {
+      "main": [
+        [
+          {
+            "node": "Tell requester",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create key": {
+      "main": [
+        [
+          {
+            "node": "Send URL to friend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send URL to friend": {
+      "main": [
+        [
+          {
+            "node": "Confirm approve",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Revoke key": {
+      "main": [
+        [
+          {
+            "node": "Confirm revoke",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List keys": {
+      "main": [
+        [
+          {
+            "node": "Send list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

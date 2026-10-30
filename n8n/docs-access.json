@@ -1,0 +1,203 @@
+{
+  "name": "Docs access via Telegram",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Give docs access",
+        "formDescription": "Creates a personal docs-publisher key and sends the connector URL to your friend on Telegram. They must have pressed Start on your bot first.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Name",
+              "placeholder": "ali",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Telegram chat ID",
+              "placeholder": "123456789",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5b0d1e8a-2f4c-4a51-9c2e-1a7d3f600001",
+      "name": "Give access form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "0f6d2c41-7a3e-4b8f-9e1d-5c2a8b700001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Turn the form input into a valid key name (letters, numbers, . _ -) and a numeric chat ID.\nconst form = $input.first().json;\nconst name = String(form['Name'] ?? '').trim().toLowerCase()\n  .replace(/[^a-z0-9._-]+/g, '-').replace(/^[^a-z0-9]+/, '').slice(0, 32);\nconst chatId = String(form['Telegram chat ID'] ?? '').trim();\nif (!name) throw new Error('Name must contain letters or numbers');\nif (!/^-?\\d+$/.test(chatId)) throw new Error('Telegram chat ID must be a number');\nreturn [{ json: { name, chatId } }];"
+      },
+      "id": "5b0d1e8a-2f4c-4a51-9c2e-1a7d3f600002",
+      "name": "Clean name",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://172.17.0.1:8788/keys",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ name: $json.name }) }}",
+        "options": {}
+      },
+      "id": "5b0d1e8a-2f4c-4a51-9c2e-1a7d3f600003",
+      "name": "Create key",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Clean name').item.json.chatId }}",
+        "text": "=Hai {{ $json.name }}! Ini URL connector docs-publisher peribadi anda:\n\n{{ $json.url }}\n\nCara pasang: claude.ai → Customize → Connectors → + Add → Add custom connector. Nama: docs-publisher. URL: tampal URL di atas.\n\nPanduan penuh: https://arfzkwn-coder.github.io/docsXAi/docs/set-up-in-claude\n\nRahsiakan URL ini, ia seperti kata laluan. Padam mesej ini selepas anda menambah connector.",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "5b0d1e8a-2f4c-4a51-9c2e-1a7d3f600004",
+      "name": "Send URL on Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "formTitle": "Revoke docs access",
+        "formDescription": "Removes a person's docs-publisher key. Their connector URL stops working immediately.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Name",
+              "placeholder": "ali",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5b0d1e8a-2f4c-4a51-9c2e-1a7d3f600005",
+      "name": "Revoke access form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        240
+      ],
+      "webhookId": "0f6d2c41-7a3e-4b8f-9e1d-5c2a8b700002"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Same cleaning as when the key was created, so 'Ali' finds 'ali'.\nconst name = String($input.first().json['Name'] ?? '').trim().toLowerCase()\n  .replace(/[^a-z0-9._-]+/g, '-').replace(/^[^a-z0-9]+/, '').slice(0, 32);\nif (!name) throw new Error('Name must contain letters or numbers');\nreturn [{ json: { name } }];"
+      },
+      "id": "5b0d1e8a-2f4c-4a51-9c2e-1a7d3f600006",
+      "name": "Clean revoke name",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "=http://172.17.0.1:8788/keys/{{ encodeURIComponent($json.name) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "5b0d1e8a-2f4c-4a51-9c2e-1a7d3f600007",
+      "name": "Revoke key",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        240
+      ]
+    }
+  ],
+  "connections": {
+    "Give access form": {
+      "main": [
+        [
+          {
+            "node": "Clean name",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean name": {
+      "main": [
+        [
+          {
+            "node": "Create key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create key": {
+      "main": [
+        [
+          {
+            "node": "Send URL on Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Revoke access form": {
+      "main": [
+        [
+          {
+            "node": "Clean revoke name",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean revoke name": {
+      "main": [
+        [
+          {
+            "node": "Revoke key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

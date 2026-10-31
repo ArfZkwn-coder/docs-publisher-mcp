@@ -57,9 +57,14 @@ export class GitHubDocs {
     return e.status === 409;
   }
 
-  /** Turn a tutorial slug/path into a repo path inside the docs directory. */
+  /**
+   * Turn a tutorial slug/path into a repo path inside the docs directory. Also accepts the
+   * repo paths list_tutorials returns ("docs/guides/x.md"), so they can be passed straight back.
+   */
   pathFor(slug) {
-    const clean = cleanPath(slug.replace(/\.mdx?$/i, ""), "tutorial");
+    let rel = slug.replace(/\\/g, "/").replace(/\.mdx?$/i, "");
+    if (this.dir && rel.startsWith(this.dir + "/")) rel = rel.slice(this.dir.length + 1);
+    const clean = cleanPath(rel, "tutorial");
     return `${this.dir ? this.dir + "/" : ""}${clean}.md`;
   }
 

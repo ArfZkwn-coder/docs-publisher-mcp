@@ -8,6 +8,12 @@ const fail = (e) => ({ isError: true, content: [{ type: "text", text: `Error: ${
 const slugify = (s) =>
   s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
+/** A tutorial's text; the GitHub API leaves out the content of files over 1 MB. */
+function textOf(file, path) {
+  if (file.content === null) throw new Error(`${path} is too large (over 1 MB) to read through the GitHub API`);
+  return file.content;
+}
+
 /** Prepend YAML front matter unless the content already has it. */
 export function withFrontMatter(content, { title, description, sidebarPosition }) {
   if (/^---\r?\n/.test(content)) return content;
@@ -62,8 +68,8 @@ export function buildServer(
     { path: z.string().describe("Tutorial path relative to the docs folder, e.g. 'getting-started/install'") },
     async ({ path }) => {
       try {
-        const file = await docs.getFile(docs.pathFor(path));
-        return file ? text(file.content) : fail(new Error(`Tutorial "${path}" not found`));
+        const found = await docs.findTutorial(path);
+        return found.file ? text(textOf(found.file, found.path)) : fail(new Error(`Tutorial "${path}" not found`));
       } catch (e) {
         return fail(e);
       }
@@ -72,7 +78,7 @@ export function buildServer(
 
   server.tool(
     "publish_tutorial",
-    "Create a new tutorial or fully replace an existing one. Front matter (title, description, sidebar_position) is added automatically if the content has none.",
+    "Create a new tutorial or fully replace an existing one. Front matter (title, description, sidebar_position) is added automatically if the content has none. An existing .mdx page is replaced in place; MDX reads `<` and `{` as code, so escape them in plain text there.",
     {
       title: z.string().describe("Tutorial title"),
       content: z.string().describe("Full Markdown body of the tutorial"),
@@ -86,14 +92,14 @@ export function buildServer(
     },
     async (a) => {
       try {
-        const path = docs.pathFor(a.path ?? slugify(a.title));
+        const { path, file } = await docs.findTutorial(a.path ?? slugify(a.title));
         const body = withFrontMatter(a.content, {
           title: a.title,
           description: a.description,
           sidebarPosition: a.sidebar_position,
         });
         const message = by(a.commit_message ?? `docs: publish "${a.title}"`);
-        const result = await docs.putFile({ path, content: body, message });
+        const result = await docs.putFile({ path, content: body, message, existing: file });
         const verb = result.created ? "Created" : "Updated";
         return text(`${verb} ${path} on branch ${docs.branch}.` + deployAfterWrite());
       } catch (e) {
@@ -113,10 +119,10 @@ export function buildServer(
     },
     async (a) => {
       try {
-        const path = docs.pathFor(a.path);
-        const file = await docs.getFile(path);
+        const { path, file } = await docs.findTutorial(a.path);
         if (!file) throw new Error(`Tutorial "${a.path}" not found`);
-        const count = file.content.split(a.old_text).length - 1;
+        const content = textOf(file, path);
+        const count = content.split(a.old_text).length - 1;
         if (count !== 1) {
           throw new Error(
             count === 0
@@ -124,9 +130,9 @@ export function buildServer(
               : `old_text matches ${count} places; include more surrounding text to make it unique`,
           );
         }
-        const updated = file.content.replace(a.old_text, () => a.new_text);
+        const updated = content.replace(a.old_text, () => a.new_text);
         const message = by(a.commit_message ?? `docs: edit ${path}`);
-        await docs.putFile({ path, content: updated, message });
+        await docs.putFile({ path, content: updated, message, existing: file });
         return text(`Edited ${path} on branch ${docs.branch}.` + deployAfterWrite());
       } catch (e) {
         return fail(e);
@@ -143,9 +149,9 @@ export function buildServer(
     },
     async (a) => {
       try {
-        const path = docs.pathFor(a.path);
+        const { path, file } = await docs.findTutorial(a.path);
         const message = by(a.commit_message ?? `docs: delete ${path}`);
-        await docs.deleteFile({ path, message });
+        await docs.deleteFile({ path, message, existing: file });
         return text(`Deleted ${path} on branch ${docs.branch}.` + deployAfterWrite());
       } catch (e) {
         return fail(e);

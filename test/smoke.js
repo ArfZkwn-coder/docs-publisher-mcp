@@ -8,6 +8,7 @@ import { SiteDeployer } from "../src/deploy.js";
 import { createAdminServer } from "../src/admin-server.js";
 import { GitHubDocs } from "../src/github.js";
 import { createHttpServer } from "../src/http-server.js";
+import { isPrivateAddress } from "../src/images.js";
 import { KeyStore } from "../src/keys.js";
 import { buildServer } from "../src/server.js";
 import { mkdtempSync } from "node:fs";
@@ -17,6 +18,7 @@ import { join } from "node:path";
 const files = new Map(); // "branch:path" -> content
 const branches = new Set(); // starts as an empty repo, like a freshly created one
 const messages = []; // commit messages, newest last
+const large = new Set(); // "branch:path" of files over 1 MB, which the contents API sends without content
 let shaCounter = 0;
 
 const json = (status, data) => ({
@@ -35,9 +37,9 @@ async function fakeFetch(url, { method, body }) {
     if (method === "GET") {
       const branch = u.searchParams.get("ref");
       const c = files.get(`${branch}:${p}`);
-      return c === undefined
-        ? json(404, { message: "Not Found" })
-        : json(200, { type: "file", sha: "s" + shaCounter, content: Buffer.from(c).toString("base64") });
+      if (c === undefined) return json(404, { message: "Not Found" });
+      if (large.has(`${branch}:${p}`)) return json(200, { type: "file", sha: "s" + shaCounter, encoding: "none", content: "" });
+      return json(200, { type: "file", sha: "s" + shaCounter, content: Buffer.from(c).toString("base64") });
     }
     if (method === "PUT") {
       if (b.branch && !branches.has(b.branch)) return json(404, { message: `Branch ${b.branch} not found` });
@@ -120,6 +122,41 @@ assert.match(r.text, /Step 1/);
 
 r = await call("list_tutorials", {});
 assert.equal(r.text, "docs/install-guide.md");
+
+files.set("main:docs/guides/page.mdx", "# An MDX page");
+r = await call("read_tutorial", { path: "guides/page" });
+assert.equal(r.text, "# An MDX page", "a bare slug finds an existing .mdx page");
+r = await call("read_tutorial", { path: "docs/guides/page.mdx" });
+assert.equal(r.text, "# An MDX page", "the path list_tutorials returns works");
+r = await call("publish_tutorial", { title: "Page", path: "guides/page", content: "# New MDX" });
+assert.ok(r.text.startsWith("Updated docs/guides/page.mdx") && !files.has("main:docs/guides/page.md"), r.text);
+files.delete("main:docs/guides/page.mdx");
+files.set("main:docs/guides/Upper.MDX", "# Upper");
+r = await call("read_tutorial", { path: "docs/guides/Upper.MDX" });
+assert.equal(r.text, "# Upper", "the extension keeps its case");
+files.delete("main:docs/guides/Upper.MDX");
+
+// Files over 1 MB come back without content: reading one fails, replacing or deleting one works.
+files.set("main:docs/big.md", "x");
+large.add("main:docs/big.md");
+r = await call("read_tutorial", { path: "big" });
+assert.ok(r.err && /too large/.test(r.text), r.text);
+r = await call("edit_tutorial", { path: "big", old_text: "x", new_text: "y" });
+assert.ok(r.err && /too large/.test(r.text), r.text);
+r = await call("publish_tutorial", { title: "Big", content: "Smaller now" });
+assert.ok(!r.err && r.text.startsWith("Updated docs/big.md"), r.text);
+r = await call("delete_tutorial", { path: "big" });
+assert.ok(!r.err && !files.has("main:docs/big.md"), r.text);
+files.set("main:static/img/photo.png", "x");
+large.add("main:static/img/photo.png");
+assert.equal((await docs.putFile({ path: "static/img/photo.png", content: Buffer.from("png"), message: "m" })).created, false);
+files.delete("main:static/img/photo.png");
+large.clear();
+
+assert.ok(isPrivateAddress("64:ff9b::7f00:1"), "NAT64 well-known prefix");
+assert.ok(isPrivateAddress("64:ff9b:1::7f00:1"), "NAT64 local-use prefix");
+assert.ok(isPrivateAddress("2002:7f00:1::"), "6to4");
+assert.ok(!isPrivateAddress("8.8.8.8"));
 
 r = await call("read_tutorial", { path: "../secrets" });
 assert.ok(r.err && /Invalid/.test(r.text), r.text);

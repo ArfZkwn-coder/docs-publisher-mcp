@@ -62,10 +62,24 @@ export class GitHubDocs {
    * repo paths list_tutorials returns ("docs/guides/x.md"), so they can be passed straight back.
    */
   pathFor(slug) {
+    const ext = slug.match(/\.(mdx?)$/i)?.[1] ?? "md";
     let rel = slug.replace(/\\/g, "/").replace(/\.mdx?$/i, "");
     if (this.dir && rel.startsWith(this.dir + "/")) rel = rel.slice(this.dir.length + 1);
     const clean = cleanPath(rel, "tutorial");
-    return `${this.dir ? this.dir + "/" : ""}${clean}.md`;
+    return `${this.dir ? this.dir + "/" : ""}${clean}.${ext}`;
+  }
+
+  /**
+   * Find a tutorial: its repo path (as pathFor gives it) and the file there, or null if there is
+   * none yet. A bare slug with no ".md" page falls back to an existing ".mdx" page.
+   */
+  async findTutorial(slug) {
+    const path = this.pathFor(slug);
+    const file = await this.getFile(path);
+    if (file || /\.mdx?$/i.test(slug)) return { path, file };
+    const mdx = path + "x";
+    const mdxFile = await this.getFile(mdx);
+    return mdxFile ? { path: mdx, file: mdxFile } : { path, file: null };
   }
 
   /** Repo path for an image, and the `src` a tutorial uses to show it. */
@@ -78,10 +92,12 @@ export class GitHubDocs {
     };
   }
 
+  /** `content` is null for files over 1 MB: the contents API sends only their sha. */
   async getFile(path, ref = this.branch) {
     const data = await this.#request("GET", `/contents/${encodeURI(path)}?ref=${encodeURIComponent(ref)}`);
     if (!data) return null;
     if (Array.isArray(data) || data.type !== "file") throw new Error(`${path} is not a file`);
+    if (data.encoding === "none") return { sha: data.sha, content: null };
     return { sha: data.sha, content: Buffer.from(data.content, "base64").toString("utf8") };
   }
 
@@ -110,9 +126,12 @@ export class GitHubDocs {
     }
   }
 
-  /** `content` is text, or a Buffer for binary files such as images. */
-  async putFile({ path, content, message, branch = this.branch }) {
-    const existing = await this.getFile(path, branch);
+  /**
+   * `content` is text, or a Buffer for binary files such as images. Pass `existing` (the file as
+   * last read, or null) to skip fetching it again; GitHub then refuses the write if it changed since.
+   */
+  async putFile({ path, content, message, branch = this.branch, existing }) {
+    if (existing === undefined) existing = await this.getFile(path, branch);
     // In an empty repo the branch doesn't exist yet; omitting it lets GitHub create
     // the first commit on the default branch.
     const branchExists = existing || (await this.branchSha(branch));
@@ -125,8 +144,8 @@ export class GitHubDocs {
     return { created: !existing, commit: result.commit.sha };
   }
 
-  async deleteFile({ path, message, branch = this.branch }) {
-    const existing = await this.getFile(path, branch);
+  async deleteFile({ path, message, branch = this.branch, existing }) {
+    if (existing === undefined) existing = await this.getFile(path, branch);
     if (!existing) throw new Error(`${path} does not exist on ${branch}`);
     const result = await this.#request("DELETE", `/contents/${encodeURI(path)}`, {
       message,

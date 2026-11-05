@@ -10,7 +10,8 @@ const MAX_REDIRECTS = 3;
 const TIMEOUT_MS = 20_000;
 const USER_AGENT = "docs-publisher-mcp/1.0 (image upload for a documentation site)";
 
-// Loopback, private, link-local, carrier-grade NAT (Tailscale), multicast and reserved ranges.
+// Loopback, private, link-local, carrier-grade NAT (Tailscale), multicast and reserved ranges,
+// plus the NAT64 (well-known and local-use) and 6to4 prefixes, which can wrap a private IPv4 address.
 const blocked = new BlockList();
 for (const [net, bits] of [
   ["0.0.0.0", 8], ["10.0.0.0", 8], ["100.64.0.0", 10], ["127.0.0.0", 8], ["169.254.0.0", 16],
@@ -18,7 +19,7 @@ for (const [net, bits] of [
 ]) {
   blocked.addSubnet(net, bits, "ipv4");
 }
-for (const [net, bits] of [["::", 127], ["fc00::", 7], ["fe80::", 10], ["ff00::", 8]]) {
+for (const [net, bits] of [["::", 127], ["64:ff9b::", 96], ["64:ff9b:1::", 48], ["2002::", 16], ["fc00::", 7], ["fe80::", 10], ["ff00::", 8]]) {
   blocked.addSubnet(net, bits, "ipv6");
 }
 
